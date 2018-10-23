@@ -21,7 +21,10 @@ class PhysicalLayer:
         if(package.headers[0].type == 2):
             self.inputPackagesChannel2.insert(len(self.inputPackagesChannel2),package)
         else:
-             self.inputPackagesChannel1.insert(len(self.inputPackagesChannel1),package)
+            if(package.headers[0].macDestiny == self.mac):
+                self.inputPackagesChannel1.insert(len(self.inputPackagesChannel1),package)
+        
+        
 
     def addPackage(self, package, type):
 
@@ -33,8 +36,9 @@ class PhysicalLayer:
         else:
             self.outputPackagesChannel1.insert(len(self.outputPackagesChannel1),package)
 
-    def sendPackage(self,type):
+    def broadcastPackage(self,type):
 
+        
         # Canal 2 - Busy Tone
         if( type == 2):
 
@@ -45,23 +49,28 @@ class PhysicalLayer:
                 x.receivePackage(package)
 
         # Canal 1 - Normal
-        else:
-            package = self.outputPackagesChannel1.pop(0)
+        elif (type == 1):
+            if(self.outputPackagesChannel1):
+                package = self.outputPackagesChannel1.pop(0)
 
-            self.checkNeighboors()
-            print(self.mac," enviou ",package.dataLoad)
-            for x in self.neighboors:
-                x.receivePackage(package)
+                self.checkNeighboors()
+                print(self.mac," enviou ",package.dataLoad)
+                for x in self.neighboors:
+                    x.receivePackage(package)
+
 
     def checkNeighboors(self):
+
         for interface in GLOBAL.physical_interfaces:
             if((interface.mac != self.mac) and (UTILS.inCircle(self.posX,self.posY,self.range,interface.posX,interface.posY) == True)):
+
+               if interface not in self.neighboors:
                 self.neighboors.append(interface)
 
     def printPackage(self):
         
         for package in self.inputPackagesChannel1:
-            print(package)
+            print("pacote = ",package.dataLoad)
 
 
 class LinkLayer:
@@ -71,14 +80,27 @@ class LinkLayer:
         self.backoff = 0
         self.counter = 0
         self.busy = 0
+        self.sendCounter = 0
         self.busyToneList = []
         self.physicalLayer = PhysicalLayer(x,y,r,i) 
 
+    def addHeader(self,package):
+
+         # Create Link Layer Header
+        header = Header(0,self.physicalLayer.mac,-1,self.counter,-1,-1,-1)
+
+        self.counter = self.counter + 1
+
+        # Append Header to package
+        package.appendHeader(header)
+
+        # Send Package to Physical Layer
+        self.physicalLayer.addPackage(package,1)
 
     def addPackage(self, mac_destiny, data_load, time):
 
         # Create Link Layer Header
-        header = Header(0,self.physicalLayer.mac,mac_destiny,self.counter)
+        header = Header(0,self.physicalLayer.mac,mac_destiny,self.counter,-1,-1,-1)
 
         self.counter = self.counter + 1
 
@@ -93,11 +115,11 @@ class LinkLayer:
 
     def sendPackage(self):
 
-        if(self.physicalLayer.outputPackagesChannel1):
 
+        if(len(self.physicalLayer.outputPackagesChannel1) != 0):
 
             destiny = self.physicalLayer.outputPackagesChannel1[0].headers[0].macDestiny
-
+            
             # Checa se o receptor está com busy tone
             permissionToSend = False
 
@@ -107,22 +129,23 @@ class LinkLayer:
 
                     # Se receptor estiver livre, libera o pacote para emissão
                     if(x[1] == 0):
-                       permissionToSend = True
+                        permissionToSend = True
+                    else:
+                        permissionToSend = False
             
+
             if( (permissionToSend == True) or (not len(self.busyToneList))):
-                if(self.physicalLayer.outputPackagesChannel1[0].sendTime == 0):
 
-                    self.physicalLayer.sendPackage(1)
-
+                if(self.sendCounter == 0):
+                    self.sendCounter = self.physicalLayer.outputPackagesChannel1[0].sendTime
+                    self.physicalLayer.broadcastPackage(1)
                 else:
-
-                    self.physicalLayer.outputPackagesChannel1[0].sendTime-=1
-
+                    self.sendCounter-=1
 
     def sendBusyTone(self):
 
         # Create Link Layer Header
-        header = Header(2,self.physicalLayer.mac,-1,-1)
+        header = Header(2,self.physicalLayer.mac,-1,-1,-1,-1,-1)
 
         # Create Package
         package = Package(self.busy,0)
@@ -132,7 +155,22 @@ class LinkLayer:
 
         # Send Package to Physical Layer
         self.physicalLayer.addPackage(package,2)
-        self.physicalLayer.sendPackage(2)
+        self.physicalLayer.broadcastPackage(2)
+
+    def checkBusy(self):
+
+        if(self.physicalLayer.inputPackagesChannel1):
+
+            self.busy = 1
+
+        else:
+
+            self.busy = 0
+
+
+       # print("busy = ",self.busy)
+        self.sendBusyTone()
+
 
     def readPackages(self):
 
@@ -150,8 +188,8 @@ class LinkLayer:
                 if(package.headers[0].macDestiny == self.physicalLayer.mac):
                     print(self.physicalLayer.mac, " leu ",package.dataLoad, " de ",package.headers[0].macOrigin)
             
-                # Libera o canal
-                self.busy = 0
+                    # Libera o canal
+                    self.busy = 0
             
             else:
                 self.physicalLayer.inputPackagesChannel1[0].readTime-=1
@@ -166,7 +204,7 @@ class LinkLayer:
 
 
         # Se houver pacotes de busy tone
-        if(self.physicalLayer.inputPackagesChannel2):
+        while(self.physicalLayer.inputPackagesChannel2):
 
             package = self.physicalLayer.inputPackagesChannel2.pop(0)
 
@@ -183,12 +221,6 @@ class LinkLayer:
 
                 x = [package.headers[0].macOrigin,package.dataLoad]
                 self.busyToneList.append(x)
-
-
-
-
-            
-            
         
     def printPackage(self):
 
@@ -196,6 +228,42 @@ class LinkLayer:
 
             if( package.headers[0].macDestiny == self.physicalLayer.mac):
                 print(package.dataLoad)
+
+class NetworkLayer:
+
+    def __init__(self,range,id,x,y):
+
+        self.linkLayer = LinkLayer(x,y,range,id)
+        self.packagesList = []
+        print("alo")
+
+
+    def addPackage(self,mac_destiny, message,time):
+
+
+
+        package = Package(message,time)
+
+        self.packagesList.append(package)
+        
+    def sendPackage(self, mac_destiny, message,sequence_list):
+
+
+        if(self.packagesList):
+            header = Header(1,-1,mac_destiny,-1,-1,-1,sequence_list)
+
+            # Get package from list
+            package = self.packagesList.pop(0)
+
+            # Append Header to package
+            package.appendHeader(header)
+
+            self.linkLayer.sendPackage()
+
+            
+
+
+
 
 
 

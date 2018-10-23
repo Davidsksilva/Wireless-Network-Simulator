@@ -10,8 +10,3 @@ class Host:
 
     def __init__(self,range,id,x,y):
         self.linkLayer = LinkLayer(x,y,range,id)
-      #  self.physicalLayer = PhysicalLayer(x,y, range, id)
-       # self.physicalLayer.posX = x 
-       # self.physicalLayer.posY = y
-       # self.physicalLayer.range = range
-     #   self.physicalLayer.id = id

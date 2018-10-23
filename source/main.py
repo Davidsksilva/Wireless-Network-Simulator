@@ -9,6 +9,7 @@ a.createPackage(3, "Hello from A",2)
 b.createPackage(3, "Hello from B",2)
 
 time_counter = 0
+
 while True:
     print("------------")
     print("Time = ",time_counter)
@@ -16,23 +17,17 @@ while True:
     
     a.linkLayer.readPackages()
     a.linkLayer.sendPackage()
-   
+    c.linkLayer.checkBusy()
 
-    c.linkLayer.readPackages()
     b.linkLayer.readPackages()
     b.linkLayer.sendPackage()
-    
+    c.linkLayer.checkBusy()
+
     c.linkLayer.readPackages()
     c.linkLayer.sendPackage()
-    
-
-    
-    #if(c.linkLayer.physicalLayer.inputPackagesChannel1):
-        #print(c.linkLayer.physicalLayer.inputPackagesChannel1[0].headers[0].macOrigin)
-
     time_counter = time_counter + 1
 
-    if(time_counter == 5):
+    if(time_counter == 10):
         break
 
 
