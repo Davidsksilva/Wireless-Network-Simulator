@@ -17,7 +17,7 @@ class Header:
 
             self.type = 1
             self.macDestiny = mac_destiny
-            self.request = request # 0 RREQ, 1 RREP
+            self.request = request # 0 RREQ, 1 RREP, -1 NORMAL
             self.sequenceNumber = sequenceNumber
             self.sequenceList = sequenceList
 
@@ -40,14 +40,11 @@ class Package:
 
         self.headers.append(header)
 
-    def getLinkHeader(self):
-
+    def updateSequence(self, sequence):
         for header in self.headers:
-            if(header.type == 0):
-                print("achou")
-                return header
 
-    #return self.headers[0]
+            if(header.type == 1):
+                header.sequenceList = sequence
 
     def getNetworkHeader(self):
 
@@ -55,7 +52,11 @@ class Package:
             if(header.type == 1):
                 return header
 
+class Route:
 
+    def __init__(self, destiny, sequence):
+        self.destiny = destiny
+        self.sequence = sequence
     
 
     
