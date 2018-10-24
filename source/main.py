@@ -5,8 +5,12 @@ a = Host(6,1,10,10)
 b = Host(6,2,12,12)
 c = Host(6,3,11,11)
 
+
+
 a.createPackage(3, "Hello from A",2)
 b.createPackage(3, "Hello from B",2)
+
+
 
 time_counter = 0
 
@@ -15,20 +19,32 @@ while True:
     print("Time = ",time_counter)
     print("------------")
     
-    a.linkLayer.readPackages()
-    a.linkLayer.sendPackage()
-    c.linkLayer.checkBusy()
+    a.networkLayer.readPackage()
+    a.networkLayer.sendPackage()
+    c.networkLayer.linkLayer.checkBusy()
 
-    b.linkLayer.readPackages()
-    b.linkLayer.sendPackage()
-    c.linkLayer.checkBusy()
+    b.networkLayer.readPackage()
+    b.networkLayer.sendPackage()
+    c.networkLayer.linkLayer.checkBusy()
 
-    c.linkLayer.readPackages()
-    c.linkLayer.sendPackage()
+    c.networkLayer.readPackage()
+    c.networkLayer.sendPackage()
+
     time_counter = time_counter + 1
 
     if(time_counter == 10):
         break
+   # a.linkLayer.readPackages()
+    #a.linkLayer.sendPackage()
+    #c.linkLayer.checkBusy()
+
+    #b.linkLayer.readPackages()
+    #b.linkLayer.sendPackage()
+    #c.linkLayer.checkBusy()
+
+    #c.linkLayer.readPackages()
+    #c.linkLayer.sendPackage()
+
 
 
 

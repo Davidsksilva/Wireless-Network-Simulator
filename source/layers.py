@@ -1,5 +1,6 @@
 import global_variables as GLOBAL
 import utilities as UTILS
+import random
 from package import Package, Header, Route
 
 class PhysicalLayer:
@@ -141,7 +142,6 @@ class LinkLayer:
         # Append Header to package
         package.appendHeader(header)
 
-
         destiny = mac_destiny
         
         # Checa se o receptor está com busy tone
@@ -236,7 +236,6 @@ class LinkLayer:
 
                 if(package.headers[0].macDestiny == self.physicalLayer.mac):
                     print(self.physicalLayer.mac, " leu ",package.dataLoad, " de ",package.headers[0].macOrigin)
-                    #self.readyPackagesList.append(package)
             
                     # Libera o canal
                     self.busy = 0
@@ -285,8 +284,8 @@ class LinkLayer:
                 
                 package = self.physicalLayer.inputPackagesChannel1.pop(0)
 
-
-                self.readyPackagesList.append(package)
+                if( package.headers[1].macDestiny == -1 or package.headers[1].macDestiny == self.physicalLayer.mac):
+                    self.readyPackagesList.append(package)
         
                 # Libera o canal
                 self.busy = 0
@@ -312,13 +311,13 @@ class LinkLayer:
             # Procura MAC na lista de Busy Tones
             for x in self.busyToneList:
 
-                if(x[0] == package.headers[1].macOrigin):
+                if(x[0] == package.headers[0].macOrigin):
                     x[1] = package.dataLoad
                     found = True
                 
             if(found == False):
 
-                x = [package.headers[1].macOrigin,package.dataLoad]
+                x = [package.headers[0].macOrigin,package.dataLoad]
                 self.busyToneList.append(x)
          
     def printPackage(self):
@@ -336,8 +335,37 @@ class NetworkLayer:
 
         self.packagesList = []
 
+        self.listRREQs = []
+
         self.routes = []
 
+    def sendRREP(self, mac_destiny, sequence, route):
+
+        print(self.linkLayer.physicalLayer.mac, " enviou RREP com a sua rota para ",mac_destiny)
+
+        header = Header(1,self.linkLayer.physicalLayer.mac,mac_destiny,-1,1,-1,sequence)
+
+        package = Package(route,0)
+
+        package.appendHeader(header)
+
+        self.linkLayer.sendNewPackage(package, mac_destiny)
+
+    def sendRREQ(self,mac_destiny):
+
+        print(self.linkLayer.physicalLayer.mac, " enviou RREQ para descobrir rota para ",mac_destiny)
+        sequence = []
+        sequence.append(self.linkLayer.physicalLayer.mac)
+
+        sequenceNumber = random.randint(1,128733788) 
+
+        header = Header (1,self.linkLayer.physicalLayer.mac,mac_destiny,-1,0,sequenceNumber,sequence)
+
+        package = Package("",0)
+
+        package.appendHeader(header)
+
+        self.linkLayer.sendNewPackage(package, mac_destiny)
 
     def readPackage(self):
 
@@ -348,29 +376,59 @@ class NetworkLayer:
             package = self.linkLayer.readyPackagesList.pop(0)
             header = package.headers[0]
 
+            if (header.request == -1): # DADOS
 
-            if (header.request == -1):
-
-                print("Camada de Redes recebeu pacote de mensagem")
+                if(header.macDestiny == self.linkLayer.physicalLayer.mac):
+                    print("Camada de Redes recebeu: ",package.dataLoad)
             
-            elif (header.request == 0 ):
-
-                print("Camada de Redes recebeu pacote de RREQ")
-
-            elif (header.request == 1):
-
-                print("Camada de Redes recebeu pacote de RREP")
+            elif (header.request == 0 ): # RREQ
 
 
+                if( not header.sequenceNumber in self.listRREQs):
 
-            
+                    self.listRREQs.append(header.sequenceNumber)
+                    header.sequenceList.append(self.linkLayer.physicalLayer.mac)
 
+                    if(header.macDestiny == self.linkLayer.physicalLayer.mac):
+                        route = header.sequenceList
+                        macDestiny = route[0]
+                        sequenceToSource = route 
+                        sequenceToSource.reverse()
+                        self.sendRREP(macDestiny,sequenceToSource, route)
+                    
+                    else:
+                        # Faz o broadcast do RREQ
+                            self.linkLayer.sendNewPackage(package,-1)
 
+            elif (header.request == 1): # RREP
+
+                #print(self.linkLayer.physicalLayer.mac, " recebeu RREP ")
+                #destiny = header.sequenceList[0]
+                destiny = header.macDestiny
+
+                if(destiny == self.linkLayer.physicalLayer.mac):
+                    
+                    sequenceToDestiny = package.dataLoad
+                    route = Route(header.sequenceList[0],sequenceToDestiny)
+                    self.routes.append(route)
+
+                else:
+
+                    for index,mac in enumerate(header.sequenceList):
+
+                        if(mac == self.linkLayer.physicalLayer.mac): # Se o mac do host está na sequence de RREP
+
+                            nextDestiny = header.sequenceList(index+1)
+
+                            nextPackage = package
+
+                            self.linkLayer.sendNewPackage(nextPackage,nextDestiny)
+                            
     def addPackage(self,mac_destiny, message,time):
 
         package = Package(message,time)
 
-        header = Header(1,-1,mac_destiny,-1,-1,-1,None)
+        header = Header(1,self.linkLayer.physicalLayer.mac,mac_destiny,-1,-1,-1,None)
 
         # Append Header to package
         package.appendHeader(header)
@@ -389,15 +447,20 @@ class NetworkLayer:
 
             sequence = None
             for route in self.routes:
-                if(route.destiny == package):
+                if(route.destiny == package.headers[0].macDestiny):
                     sequence = route.sequence
 
 
             # If there is a route, send data package
             if( sequence != None ):
+
                 # Append Header to package
                 package.updateSequence(sequence)
                 self.linkLayer.sendNewPackage(package, package.headers[0].macDestiny)
+            else:
+                self.sendRREQ(package.headers[0].macDestiny)
+
+                
 
             
 

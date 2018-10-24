@@ -5,6 +5,7 @@ import utilities as UTILS
 class Host:
 
     def createPackage(self, mac_destiny, message, time):
+        self.networkLayer.addPackage(mac_destiny,message,time)
         self.linkLayer.addPackage(mac_destiny, message,time)
 
 
