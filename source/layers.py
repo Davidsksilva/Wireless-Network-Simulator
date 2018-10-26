@@ -38,7 +38,7 @@ class PhysicalLayer:
             self.outputPackagesChannel1.insert(len(self.outputPackagesChannel1),package)
 
     def broadcastGivenPackage(self, type, package):
-
+        #print(self.mac," enviou ",package.dataLoad)
         # Canal 2 - Busy Tone
         if( type == 2):
 
@@ -50,7 +50,7 @@ class PhysicalLayer:
         elif (type == 1):
 
                 self.checkNeighboors()
-                print(self.mac," enviou ",package.dataLoad)
+               # print(self.mac," enviou ",package.dataLoad)
                 for x in self.neighboors:
                     x.receivePackage(package)
 
@@ -72,7 +72,7 @@ class PhysicalLayer:
                 package = self.outputPackagesChannel1.pop(0)
 
                 self.checkNeighboors()
-                print(self.mac," enviou ",package.dataLoad)
+               # print(self.mac," enviou ",package.dataLoad)
                 for x in self.neighboors:
                     x.receivePackage(package)
 
@@ -99,7 +99,8 @@ class LinkLayer:
         self.counter = 0
         self.busy = 0
         self.sendCounter = 0
-        self.readyPackagesList = []
+        self.inputPackagesList = []
+        self.outputPackagesList = []
         self.busyToneList = []
         self.physicalLayer = PhysicalLayer(x,y,r,i) 
 
@@ -116,23 +117,7 @@ class LinkLayer:
         # Send Package to Physical Layer
         self.physicalLayer.addPackage(package,1)
 
-    def addPackage(self, mac_destiny, data_load, time):
-
-        # Create Link Layer Header
-        header = Header(0,self.physicalLayer.mac,mac_destiny,self.counter,-1,-1,-1)
-
-        self.counter = self.counter + 1
-
-        # Create Package
-        package = Package(data_load,time)
-
-        # Append Header to package
-        package.appendHeader(header)
-
-        # Send Package to Physical Layer
-        self.physicalLayer.addPackage(package,1)
-
-    def sendNewPackage(self, package, mac_destiny):
+    def addPackage(self,package, mac_destiny):
 
         # Create Link Layer Header
         header = Header(0,self.physicalLayer.mac,mac_destiny,self.counter,-1,-1,-1)
@@ -142,24 +127,31 @@ class LinkLayer:
         # Append Header to package
         package.appendHeader(header)
 
-        destiny = mac_destiny
-        
-        # Checa se o receptor está com busy tone
-        permissionToSend = False
+        self.outputPackagesList.append(package)
 
-        for x in self.busyToneList:
+    def sendNewPackage(self):
 
-            if(destiny == x[0]):
+        if(len(self.outputPackagesList) != 0):
 
-                # Se receptor estiver livre, libera o pacote para emissão
-                if(x[1] == 0):
-                    permissionToSend = True
-                else:
-                    permissionToSend = False
-        
+            package = self.outputPackagesList[0]
+            destiny = package.headers[1].macDestiny
+            
+            # Checa se o receptor está com busy tone
+            permissionToSend = False
+
+            for x in self.busyToneList:
+
+                if(destiny == x[0]):
+
+                    # Se receptor estiver livre, libera o pacote para emissão
+                    if(x[1] == 0):
+                        permissionToSend = True
+                    else:
+                        permissionToSend = False
+            
 
             if( (permissionToSend == True) or (not len(self.busyToneList))):
-
+                self.outputPackagesList.pop(0)
                 self.physicalLayer.broadcastGivenPackage(1,package)
 
     def sendPackage(self):
@@ -285,7 +277,7 @@ class LinkLayer:
                 package = self.physicalLayer.inputPackagesChannel1.pop(0)
 
                 if( package.headers[1].macDestiny == -1 or package.headers[1].macDestiny == self.physicalLayer.mac):
-                    self.readyPackagesList.append(package)
+                    self.inputPackagesList.append(package)
         
                 # Libera o canal
                 self.busy = 0
@@ -337,19 +329,21 @@ class NetworkLayer:
 
         self.listRREQs = []
 
+        self.waitingRouteToList = []
+
         self.routes = []
 
     def sendRREP(self, mac_destiny, sequence, route):
 
-        print(self.linkLayer.physicalLayer.mac, " enviou RREP com a sua rota para ",mac_destiny)
+        print(self.linkLayer.physicalLayer.mac, " enviou RREP com a rota ",route," para ",mac_destiny)
 
         header = Header(1,self.linkLayer.physicalLayer.mac,mac_destiny,-1,1,-1,sequence)
 
-        package = Package(route,0)
+        package = Package(route,1)
 
         package.appendHeader(header)
-
-        self.linkLayer.sendNewPackage(package, mac_destiny)
+        self.linkLayer.addPackage(package,mac_destiny)
+        #self.linkLayer.sendNewPackage(package, mac_destiny)
 
     def sendRREQ(self,mac_destiny):
 
@@ -361,19 +355,19 @@ class NetworkLayer:
 
         header = Header (1,self.linkLayer.physicalLayer.mac,mac_destiny,-1,0,sequenceNumber,sequence)
 
-        package = Package("",0)
+        package = Package("",1)
 
         package.appendHeader(header)
-
-        self.linkLayer.sendNewPackage(package, mac_destiny)
+        self.linkLayer.addPackage(package,mac_destiny)
+        #self.linkLayer.sendNewPackage(package, mac_destiny)
 
     def readPackage(self):
 
         self.linkLayer.readNewPackages()
 
-        if(self.linkLayer.readyPackagesList):
+        if(self.linkLayer.inputPackagesList):
 
-            package = self.linkLayer.readyPackagesList.pop(0)
+            package = self.linkLayer.inputPackagesList.pop(0)
             header = package.headers[0]
 
             if (header.request == -1): # DADOS
@@ -383,7 +377,7 @@ class NetworkLayer:
             
             elif (header.request == 0 ): # RREQ
 
-
+                print(self.linkLayer.physicalLayer.mac, " recebeu RREQ ")
                 if( not header.sequenceNumber in self.listRREQs):
 
                     self.listRREQs.append(header.sequenceNumber)
@@ -398,11 +392,12 @@ class NetworkLayer:
                     
                     else:
                         # Faz o broadcast do RREQ
-                            self.linkLayer.sendNewPackage(package,-1)
+                            self.linkLayer.addPackage(package,-1)
+                            #self.linkLayer.sendNewPackage(package,-1)
 
             elif (header.request == 1): # RREP
 
-                #print(self.linkLayer.physicalLayer.mac, " recebeu RREP ")
+                print(self.linkLayer.physicalLayer.mac, " recebeu RREP ")
                 #destiny = header.sequenceList[0]
                 destiny = header.macDestiny
 
@@ -421,8 +416,8 @@ class NetworkLayer:
                             nextDestiny = header.sequenceList(index+1)
 
                             nextPackage = package
-
-                            self.linkLayer.sendNewPackage(nextPackage,nextDestiny)
+                            self.linkLayer.addPackage(nextPackage,nextDestiny)
+                            #self.linkLayer.sendNewPackage(nextPackage,nextDestiny)
                             
     def addPackage(self,mac_destiny, message,time):
 
@@ -449,6 +444,8 @@ class NetworkLayer:
             for route in self.routes:
                 if(route.destiny == package.headers[0].macDestiny):
                     sequence = route.sequence
+                    self.waitingRouteToList.remove(package.headers[0].macDestiny)
+
 
 
             # If there is a route, send data package
@@ -456,12 +453,15 @@ class NetworkLayer:
 
                 # Append Header to package
                 package.updateSequence(sequence)
-                self.linkLayer.sendNewPackage(package, package.headers[0].macDestiny)
-            else:
+                self.packagesList.pop(0)
+                self.linkLayer.addPackage(package,package.headers[0].macDestiny)
+                #self.linkLayer.sendNewPackage(package, package.headers[0].macDestiny)
+                
+            elif (not package.headers[0].macDestiny in self.waitingRouteToList):
+                self.waitingRouteToList.append(package.headers[0].macDestiny)
                 self.sendRREQ(package.headers[0].macDestiny)
 
-                
-
+        self.linkLayer.sendNewPackage()
             
 
 

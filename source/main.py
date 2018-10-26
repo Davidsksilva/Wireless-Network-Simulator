@@ -22,13 +22,19 @@ while True:
     a.networkLayer.readPackage()
     a.networkLayer.sendPackage()
     c.networkLayer.linkLayer.checkBusy()
+    a.networkLayer.linkLayer.checkBusy()
+    b.networkLayer.linkLayer.checkBusy()
 
     b.networkLayer.readPackage()
     b.networkLayer.sendPackage()
     c.networkLayer.linkLayer.checkBusy()
+    a.networkLayer.linkLayer.checkBusy()
+    b.networkLayer.linkLayer.checkBusy()
 
     c.networkLayer.readPackage()
     c.networkLayer.sendPackage()
+    a.networkLayer.linkLayer.checkBusy()
+    b.networkLayer.linkLayer.checkBusy()
 
     time_counter = time_counter + 1
 
